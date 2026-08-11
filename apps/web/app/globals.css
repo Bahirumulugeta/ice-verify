@@ -1,0 +1,56 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root {
+  --color-ink: #0b3d4a;
+  --color-ink-muted: #1a5566;
+  --color-ink-subtle: #5a7a85;
+  --color-ice: #4fb0c6;
+  --color-ice-light: #7ec9d9;
+  --color-ice-dark: #2d8fa6;
+  --color-atmosphere: #f7f5f0;
+  --color-atmosphere-warm: #f0ebe3;
+  --color-atmosphere-cool: #e8f2f5;
+  --color-surface: #faf9f6;
+  --color-surface-raised: #ffffff;
+  --color-surface-border: rgba(11, 61, 74, 0.1);
+}
+
+@layer base {
+  html {
+    scroll-behavior: smooth;
+  }
+
+  body {
+    @apply bg-atmosphere font-sans text-ink antialiased;
+    background-image:
+      radial-gradient(ellipse 100% 80% at 50% -20%, rgba(79, 176, 198, 0.12), transparent 50%),
+      linear-gradient(180deg, var(--color-atmosphere) 0%, var(--color-atmosphere-warm) 100%);
+    min-height: 100vh;
+  }
+
+  ::selection {
+    @apply bg-ice/30 text-ink;
+  }
+}
+
+@layer utilities {
+  .text-balance {
+    text-wrap: balance;
+  }
+
+  .hero-atmosphere {
+    background-image:
+      radial-gradient(ellipse 70% 50% at 50% 0%, rgba(79, 176, 198, 0.2) 0%, transparent 60%),
+      radial-gradient(ellipse 50% 40% at 80% 20%, rgba(11, 61, 74, 0.08) 0%, transparent 50%),
+      linear-gradient(180deg, var(--color-atmosphere-cool) 0%, var(--color-atmosphere) 40%, var(--color-atmosphere-warm) 100%);
+  }
+
+  .pattern-grid {
+    background-size: 24px 24px;
+    background-image:
+      linear-gradient(to right, rgba(11, 61, 74, 0.03) 1px, transparent 1px),
+      linear-gradient(to bottom, rgba(11, 61, 74, 0.03) 1px, transparent 1px);
+  }
+}

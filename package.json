@@ -1,0 +1,57 @@
+{
+  "name": "ice-verification",
+  "version": "1.0.0",
+  "private": true,
+  "description": "ICE Verification — provider-agnostic payment verification platform",
+  "workspaces": [
+    "apps/*",
+    "packages/*"
+  ],
+  "scripts": {
+    "dev": "concurrently -n api,worker,web -c blue,magenta,green \"npm run dev -w @ice/api\" \"npm run dev -w @ice/worker\" \"npm run dev -w @ice/web\"",
+    "dev:api": "npm run dev -w @ice/api",
+    "dev:worker": "npm run dev -w @ice/worker",
+    "dev:web": "npm run dev -w @ice/web",
+    "build": "npm run build -w @ice/domain -w @ice/shared -w @ice/validation -w @ice/config -w @ice/providers -w @ice/api-client && npm run build -w @ice/api -w @ice/worker -w @ice/web",
+    "lint": "eslint . --ext .ts,.tsx",
+    "typecheck": "tsc -b",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "test:coverage": "vitest run --coverage",
+    "db:generate": "prisma generate",
+    "db:migrate": "prisma migrate dev",
+    "db:migrate:deploy": "prisma migrate deploy",
+    "db:seed": "tsx prisma/seed.ts",
+    "db:studio": "prisma studio",
+    "format": "prettier --write .",
+    "format:check": "prettier --check .",
+    "docker:up": "docker compose up --build",
+    "docker:dev": "docker compose -f docker-compose.yml -f docker-compose.dev.yml up --build",
+    "docker:test": "docker compose -f docker-compose.yml -f docker-compose.test.yml up --build --abort-on-container-exit",
+    "ci": "npm run lint && npm run typecheck && npm run test && npm run build"
+  },
+  "engines": {
+    "node": ">=20"
+  },
+  "devDependencies": {
+    "@types/node": "^20.14.0",
+    "@typescript-eslint/eslint-plugin": "^7.13.0",
+    "@typescript-eslint/parser": "^7.13.0",
+    "concurrently": "^8.2.2",
+    "eslint": "^8.57.0",
+    "eslint-config-prettier": "^9.1.0",
+    "prettier": "^3.3.2",
+    "prisma": "^5.16.0",
+    "tsx": "^4.15.7",
+    "typescript": "^5.5.2",
+    "vitest": "^1.6.0",
+    "@vitest/coverage-v8": "^1.6.0"
+  },
+  "dependencies": {
+    "@prisma/client": "^5.16.0",
+    "bcryptjs": "^2.4.3"
+  },
+  "prisma": {
+    "seed": "tsx prisma/seed.ts"
+  }
+}

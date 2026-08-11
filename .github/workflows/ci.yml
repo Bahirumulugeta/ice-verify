@@ -1,0 +1,57 @@
+name: CI
+
+on:
+  push:
+    branches: [main, master]
+  pull_request:
+
+jobs:
+  build-test:
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:16-alpine
+        env:
+          POSTGRES_USER: ice
+          POSTGRES_PASSWORD: ice_secret
+          POSTGRES_DB: ice_verification
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U ice -d ice_verification"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+      redis:
+        image: redis:7-alpine
+        ports:
+          - 6379:6379
+        options: >-
+          --health-cmd "redis-cli ping"
+          --health-interval 5s
+          --health-timeout 3s
+          --health-retries 10
+
+    env:
+      DATABASE_URL: postgresql://ice:ice_secret@localhost:5432/ice_verification?schema=public
+      REDIS_URL: redis://localhost:6379
+      API_KEY_PEPPER: change-me-to-a-long-random-pepper-value-32chars
+      SESSION_SECRET: change-me-to-a-long-random-session-secret-32
+      JWT_SECRET: change-me-to-a-long-random-jwt-secret-32chars
+      DEMO_MERCHANT_API_KEY: ice_test_demo_key_do_not_use_in_production
+      NODE_ENV: test
+
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+      - run: npm ci
+      - run: npx prisma generate
+      - run: npx prisma migrate deploy
+      - run: npm run build -w @ice/shared -w @ice/validation -w @ice/config -w @ice/domain -w @ice/api-client
+      - run: npm test
+      - run: npm run build -w @ice/api
+      - run: npm run build -w @ice/worker
+      - run: npm run build -w @ice/web

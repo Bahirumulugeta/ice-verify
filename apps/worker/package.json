@@ -1,0 +1,21 @@
+{
+  "name": "@ice/worker",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "tsx watch src/index.ts",
+    "build": "tsc -p tsconfig.json",
+    "start": "node dist/index.js",
+    "typecheck": "tsc -p tsconfig.json --noEmit"
+  },
+  "dependencies": {
+    "@ice/config": "*",
+    "@ice/domain": "*",
+    "@ice/providers": "*",
+    "@ice/shared": "*",
+    "@prisma/client": "^5.16.0",
+    "ioredis": "^5.4.1",
+    "pino": "^9.2.0"
+  }
+}

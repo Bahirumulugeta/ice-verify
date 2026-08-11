@@ -1,0 +1,388 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+enum DashboardRole {
+  OWNER
+  ADMIN
+  MEMBER
+  VIEWER
+}
+
+enum ApiKeyEnvironment {
+  test
+  live
+}
+
+enum VerificationStatus {
+  CREATED
+  PROCESSING
+  VERIFIED
+  NOT_FOUND
+  PENDING
+  FAILED
+  PROVIDER_UNAVAILABLE
+  AMOUNT_MISMATCH
+  RECEIVER_MISMATCH
+  DUPLICATE
+  INVALID_REQUEST
+}
+
+enum RiskLevel {
+  LOW
+  MEDIUM
+  HIGH
+  CRITICAL
+}
+
+enum WebhookDeliveryStatus {
+  PENDING
+  DELIVERED
+  FAILED
+  RETRYING
+  DISABLED
+  DEAD_LETTER
+}
+
+enum ProviderIntegrationStatus {
+  available
+  pending
+  disabled
+}
+
+model User {
+  id           String        @id @default(cuid())
+  email        String        @unique
+  passwordHash String
+  name         String
+  createdAt    DateTime      @default(now())
+  updatedAt    DateTime      @updatedAt
+  memberships  Membership[]
+  auditLogs    AuditLog[]
+}
+
+model Merchant {
+  id             String                  @id @default(cuid())
+  name           String
+  slug           String                  @unique
+  createdAt      DateTime                @default(now())
+  updatedAt      DateTime                @updatedAt
+  memberships    Membership[]
+  apiKeys        ApiKey[]
+  verifications  VerificationRequest[]
+  webhooks       Webhook[]
+  usageRecords   UsageRecord[]
+  auditLogs      AuditLog[]
+  providerConfigs ProviderConfiguration[]
+  idempotencyKeys IdempotencyKey[]
+  paymentClaims   PaymentClaim[]
+  planSubscription PlanSubscription?
+}
+
+model Membership {
+  id         String        @id @default(cuid())
+  userId     String
+  merchantId String
+  role       DashboardRole @default(MEMBER)
+  createdAt  DateTime      @default(now())
+  user       User          @relation(fields: [userId], references: [id], onDelete: Cascade)
+  merchant   Merchant      @relation(fields: [merchantId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, merchantId])
+  @@index([merchantId])
+}
+
+model ApiKey {
+  id          String            @id @default(cuid())
+  merchantId  String
+  name        String
+  prefix      String
+  keyHash     String            @unique
+  environment ApiKeyEnvironment
+  expiresAt   DateTime?
+  revokedAt   DateTime?
+  lastUsedAt  DateTime?
+  createdAt   DateTime          @default(now())
+  updatedAt   DateTime          @updatedAt
+  merchant    Merchant          @relation(fields: [merchantId], references: [id], onDelete: Cascade)
+
+  @@index([merchantId])
+  @@index([prefix])
+}
+
+model Provider {
+  id                String                    @id @default(cuid())
+  name              String                    @unique
+  displayName       String
+  integrationStatus ProviderIntegrationStatus @default(pending)
+  capabilitiesJson  Json
+  createdAt         DateTime                  @default(now())
+  updatedAt         DateTime                  @updatedAt
+  configurations    ProviderConfiguration[]
+  health            ProviderHealth[]
+}
+
+model ProviderConfiguration {
+  id         String   @id @default(cuid())
+  merchantId String
+  providerId String
+  enabled    Boolean  @default(true)
+  configJson Json     @default("{}")
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+  merchant   Merchant @relation(fields: [merchantId], references: [id], onDelete: Cascade)
+  provider   Provider @relation(fields: [providerId], references: [id], onDelete: Cascade)
+
+  @@unique([merchantId, providerId])
+}
+
+model VerificationRequest {
+  id               String              @id
+  merchantId       String
+  provider         String
+  reference        String
+  status           VerificationStatus  @default(CREATED)
+  environment      ApiKeyEnvironment
+  expectedAmount   Decimal?            @db.Decimal(18, 2)
+  currency         String?
+  expectedReceiver String?
+  actualAmount     Decimal?            @db.Decimal(18, 2)
+  actualReceiver   String?
+  verified         Boolean             @default(false)
+  metadataJson     Json                @default("{}")
+  requestId        String
+  idempotencyKey   String?
+  createdAt        DateTime            @default(now())
+  updatedAt        DateTime            @updatedAt
+  completedAt      DateTime?
+  merchant         Merchant            @relation(fields: [merchantId], references: [id], onDelete: Cascade)
+  attempts         VerificationAttempt[]
+  result           VerificationResult?
+  riskAssessment   RiskAssessment?
+  paymentDetails   PaymentDetails?
+
+  @@unique([merchantId, idempotencyKey])
+  @@index([merchantId, createdAt])
+  @@index([merchantId, reference])
+  @@index([status])
+  @@index([provider])
+}
+
+model VerificationAttempt {
+  id             String              @id @default(cuid())
+  verificationId String
+  attemptNumber  Int
+  status         VerificationStatus
+  provider       String
+  latencyMs      Int?
+  errorCode      String?
+  errorMessage   String?
+  createdAt      DateTime            @default(now())
+  verification   VerificationRequest @relation(fields: [verificationId], references: [id], onDelete: Cascade)
+
+  @@index([verificationId])
+}
+
+model VerificationResult {
+  id             String              @id @default(cuid())
+  verificationId String              @unique
+  outcomeStatus  VerificationStatus
+  summaryJson    Json
+  createdAt      DateTime            @default(now())
+  verification   VerificationRequest @relation(fields: [verificationId], references: [id], onDelete: Cascade)
+}
+
+model PaymentDetails {
+  id                    String              @id @default(cuid())
+  verificationId        String              @unique
+  reference             String
+  provider              String
+  amount                Decimal             @db.Decimal(18, 2)
+  currency              String
+  sender                String?
+  receiver              String?
+  transactionDate       DateTime?
+  status                String
+  providerTransactionId String?
+  metadataJson          Json                @default("{}")
+  createdAt             DateTime            @default(now())
+  verification          VerificationRequest @relation(fields: [verificationId], references: [id], onDelete: Cascade)
+
+  @@index([provider, reference])
+}
+
+model RiskAssessment {
+  id             String              @id @default(cuid())
+  verificationId String              @unique
+  score          Int
+  level          RiskLevel
+  createdAt      DateTime            @default(now())
+  verification   VerificationRequest @relation(fields: [verificationId], references: [id], onDelete: Cascade)
+  flags          RiskFlag[]
+}
+
+model RiskFlag {
+  id               String         @id @default(cuid())
+  riskAssessmentId String
+  code             String
+  message          String
+  severity         RiskLevel
+  riskAssessment   RiskAssessment @relation(fields: [riskAssessmentId], references: [id], onDelete: Cascade)
+
+  @@index([riskAssessmentId])
+}
+
+model IdempotencyKey {
+  id           String   @id @default(cuid())
+  merchantId   String
+  key          String
+  requestHash  String
+  responseJson Json
+  statusCode   Int
+  createdAt    DateTime @default(now())
+  expiresAt    DateTime
+  merchant     Merchant @relation(fields: [merchantId], references: [id], onDelete: Cascade)
+
+  @@unique([merchantId, key])
+  @@index([expiresAt])
+}
+
+model Webhook {
+  id          String            @id @default(cuid())
+  merchantId  String
+  url         String
+  secretHash  String
+  secretPrefix String
+  events      String[]
+  description String?
+  enabled     Boolean           @default(true)
+  createdAt   DateTime          @default(now())
+  updatedAt   DateTime          @updatedAt
+  merchant    Merchant          @relation(fields: [merchantId], references: [id], onDelete: Cascade)
+  deliveries  WebhookDelivery[]
+
+  @@index([merchantId])
+}
+
+model WebhookDelivery {
+  id             String                @id
+  webhookId      String
+  event          String
+  payloadJson    Json
+  status         WebhookDeliveryStatus @default(PENDING)
+  attemptCount   Int                   @default(0)
+  nextRetryAt    DateTime?
+  lastStatusCode Int?
+  lastError      String?
+  deliveredAt    DateTime?
+  createdAt      DateTime              @default(now())
+  updatedAt      DateTime              @updatedAt
+  webhook        Webhook               @relation(fields: [webhookId], references: [id], onDelete: Cascade)
+
+  @@index([webhookId, createdAt])
+  @@index([status, nextRetryAt])
+}
+
+model UsageRecord {
+  id         String   @id @default(cuid())
+  merchantId String
+  metric     String
+  value      Int      @default(1)
+  provider   String?
+  metadataJson Json   @default("{}")
+  recordedAt DateTime @default(now())
+  merchant   Merchant @relation(fields: [merchantId], references: [id], onDelete: Cascade)
+
+  @@index([merchantId, recordedAt])
+  @@index([metric, recordedAt])
+}
+
+model AuditLog {
+  id         String   @id @default(cuid())
+  merchantId String?
+  actorUserId String?
+  actorType  String
+  action     String
+  resource   String
+  resourceId String?
+  requestId  String?
+  metadataJson Json   @default("{}")
+  createdAt  DateTime @default(now())
+  merchant   Merchant? @relation(fields: [merchantId], references: [id], onDelete: SetNull)
+  actorUser  User?     @relation(fields: [actorUserId], references: [id], onDelete: SetNull)
+
+  @@index([merchantId, createdAt])
+  @@index([action, createdAt])
+}
+
+model ProviderHealth {
+  id         String   @id @default(cuid())
+  providerId String
+  healthy    Boolean
+  latencyMs  Int
+  message    String?
+  checkedAt  DateTime @default(now())
+  provider   Provider @relation(fields: [providerId], references: [id], onDelete: Cascade)
+
+  @@index([providerId, checkedAt])
+}
+
+model DuplicateReference {
+  id         String   @id @default(cuid())
+  merchantId String
+  provider   String
+  reference  String
+  scope      String   @default("merchant")
+  firstSeenAt DateTime @default(now())
+  lastSeenAt  DateTime @default(now())
+  count      Int      @default(1)
+
+  @@unique([merchantId, provider, reference, scope])
+  @@index([provider, reference])
+}
+
+enum PaymentClaimStatus {
+  CLAIMED
+  RELEASED
+  EXPIRED
+}
+
+/// Marks a provider payment as consumed so other systems cannot reuse it for fulfillment.
+model PaymentClaim {
+  id              String             @id @default(cuid())
+  merchantId      String
+  provider        String
+  reference       String
+  verificationId  String?
+  externalOrderId String?
+  status          PaymentClaimStatus @default(CLAIMED)
+  claimedAt       DateTime           @default(now())
+  releasedAt      DateTime?
+  expiresAt       DateTime?
+  metadataJson    Json               @default("{}")
+  createdAt       DateTime           @default(now())
+  updatedAt       DateTime           @updatedAt
+  merchant        Merchant           @relation(fields: [merchantId], references: [id], onDelete: Cascade)
+
+  @@unique([provider, reference])
+  @@index([merchantId, claimedAt])
+  @@index([status, expiresAt])
+}
+
+model PlanSubscription {
+  id         String   @id @default(cuid())
+  merchantId String   @unique
+  planId     String
+  status     String   @default("active")
+  startedAt  DateTime @default(now())
+  renewsAt   DateTime?
+  metadataJson Json   @default("{}")
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+  merchant   Merchant @relation(fields: [merchantId], references: [id], onDelete: Cascade)
+}

@@ -1,0 +1,12 @@
+services:
+  api:
+    environment:
+      NODE_ENV: test
+      DATABASE_URL: postgresql://ice:ice_secret@postgres:5432/ice_verification_test?schema=public
+    command: sh -c "npx prisma migrate deploy && npm test"
+
+  worker:
+    profiles: ['full']
+
+  web:
+    profiles: ['full']
